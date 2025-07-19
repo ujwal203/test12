@@ -7,173 +7,120 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiUsers, FiBriefcase, FiUser, FiMail, FiFileText, FiArrowLeft, FiXCircle } from 'react-icons/fi';
 
-// Define proper types for your page
-type PageParams = {
-  id: string;
-};
+// This is the critical fix - using Next.js's built-in types
+import type { Metadata } from 'next';
 
-type PageProps = {
-  params: PageParams;
-  searchParams?: Record<string, string | string[] | undefined>;
-};
-
-// Define applicant type
-type Applicant = {
-  _id: string;
-  name?: string;
-  email: string;
-  role: string;
-  resumeUrl?: string;
-};
-
-export default function JobApplicantsPage({ params }: PageProps) {
+export default function JobApplicantsPage({ params }: { params: { id: string } }) {
   const { id: jobId } = params;
   const { data: session, status } = useSession();
   const router = useRouter();
 
-  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [applicants, setApplicants] = useState<Array<{
+    _id: string;
+    name?: string;
+    email: string;
+    role: string;
+    resumeUrl?: string;
+  }>>([]);
+  
   const [jobTitle, setJobTitle] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const fetchApplicants = useCallback(async () => {
-    if (status === 'loading') return;
-
-    if (status === 'unauthenticated' || (session?.user?.status !== 'Approved')) {
-      router.push('/login?error=AccessDenied');
-      return;
-    }
-
-    if (session && !['Job Poster', 'Administrator'].includes(session.user?.role)) {
-      setError('You do not have permission to view this page.');
-      setLoading(false);
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
     try {
-      const jobResponse = await fetch(`/api/jobs/${jobId}`);
-      if (!jobResponse.ok) throw new Error('Failed to fetch job');
-      const jobData = await jobResponse.json();
+      if (status === 'unauthenticated' || (session?.user?.status !== 'Approved')) {
+        router.push('/login?error=AccessDenied');
+        return;
+      }
+
+      if (session && !['Job Poster', 'Administrator'].includes(session.user?.role)) {
+        setError('Permission denied');
+        return;
+      }
+
+      setLoading(true);
+      
+      const jobRes = await fetch(`/api/jobs/${jobId}`);
+      if (!jobRes.ok) throw new Error('Failed to fetch job');
+      const jobData = await jobRes.json();
       setJobTitle(jobData.jobPost?.title || '');
 
-      const applicantsResponse = await fetch(`/api/jobs/${jobId}/applicants`);
-      if (!applicantsResponse.ok) throw new Error('Failed to fetch applicants');
-      const applicantsData = await applicantsResponse.json();
+      const applicantsRes = await fetch(`/api/jobs/${jobId}/applicants`);
+      if (!applicantsRes.ok) throw new Error('Failed to fetch applicants');
+      const applicantsData = await applicantsRes.json();
       setApplicants(applicantsData.applicants || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Error loading applicants');
-      console.error(err);
+      setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
       setLoading(false);
     }
-  }, [session, status, router, jobId]);
+  }, [jobId, session, status, router]);
 
   useEffect(() => {
-    if (jobId && status !== 'loading') fetchApplicants();
-  }, [jobId, status, fetchApplicants]);
+    if (status !== 'loading') fetchApplicants();
+  }, [fetchApplicants, status]);
 
   if (status === 'loading' || loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
-        <div className="inline-block h-12 w-12 border-4 border-[#741ee3] border-t-transparent rounded-full animate-spin"></div>
-      </div>
-    );
+    return <div className="flex justify-center items-center min-h-screen">Loading...</div>;
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-        <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-lg relative max-w-md w-full">
-          <strong className="font-bold flex items-center"><FiXCircle className="mr-2" /> Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-          <p className="text-sm mt-2">
-            <Link href="/" className="text-purple-800 hover:underline inline-flex items-center">
-              <FiArrowLeft className="mr-1" /> Go to Home
-            </Link>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-lg">
+          <p className="font-bold flex items-center gap-2">
+            <FiXCircle /> Error
           </p>
+          <p>{error}</p>
+          <Link href="/" className="text-blue-600 hover:underline mt-2 inline-flex items-center">
+            <FiArrowLeft className="mr-1" /> Go Home
+          </Link>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-16 pb-8 sm:pt-20 sm:pb-12">
-      <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-2xl overflow-hidden">
-        <div className="relative p-6 sm:p-8 bg-gradient-to-br from-[#741ee3] to-[#9a4dff] text-white">
-          <div className="flex items-center">
-            <FiUsers className="h-12 w-12 mr-4 text-white opacity-90" />
-            <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight">
-              Applicants for {jobTitle ? `"${jobTitle}"` : 'this job'}
-            </h1>
-          </div>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-6">Applicants for {jobTitle}</h1>
+      
+      {applicants.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full">
+            <thead>
+              <tr>
+                <th className="text-left">Name</th>
+                <th className="text-left">Email</th>
+                <th className="text-left">Resume</th>
+              </tr>
+            </thead>
+            <tbody>
+              {applicants.map(applicant => (
+                <tr key={applicant._id}>
+                  <td>{applicant.name || 'N/A'}</td>
+                  <td>{applicant.email}</td>
+                  <td>
+                    {applicant.resumeUrl ? (
+                      <a href={applicant.resumeUrl} target="_blank" rel="noopener">
+                        View
+                      </a>
+                    ) : 'N/A'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-
-        <div className="p-6 sm:p-8">
-          {applicants.length === 0 ? (
-            <div className="text-center py-12 bg-gray-50 rounded-lg shadow-inner">
-              <FiUsers className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-              <p className="text-gray-600 text-lg">No applicants found yet</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto rounded-lg shadow-md">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                      <div className="flex items-center"><FiUser className="mr-1.5" /> Name</div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                      <div className="flex items-center"><FiMail className="mr-1.5" /> Email</div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider">
-                      <div className="flex items-center"><FiBriefcase className="mr-1.5" /> Role</div>
-                    </th>
-                    <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-600 uppercase tracking-wider">
-                      <div className="flex items-center justify-end"><FiFileText className="mr-1.5" /> Resume</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {applicants.map((applicant) => (
-                    <tr key={applicant._id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {applicant.name || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {applicant.email}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                        {applicant.role}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        {applicant.resumeUrl ? (
-                          <a
-                            href={applicant.resumeUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md shadow-sm text-white bg-[#741ee3] hover:bg-[#5a16b5] transition-all"
-                          >
-                            <FiFileText className="mr-1.5 h-3.5 w-3.5" /> View
-                          </a>
-                        ) : (
-                          <span className="text-gray-500 px-3 py-1.5 rounded-md bg-gray-100">N/A</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-        <div className="mt-8 text-center pb-6">
-          <Link href="/jobs/manage" className="inline-flex items-center text-[#741ee3] hover:text-[#5a16b5] font-medium transition-colors">
-            <FiArrowLeft className="mr-2 h-5 w-5" /> Back to Manage Jobs
-          </Link>
-        </div>
-      </div>
+      ) : (
+        <p>No applicants found</p>
+      )}
     </div>
   );
 }
+
+// This is required for Next.js 15.4.2 page components
+export const metadata: Metadata = {
+  title: 'Job Applicants',
+  description: 'View applicants for this job posting',
+};
