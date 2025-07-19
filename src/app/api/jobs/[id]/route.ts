@@ -1,24 +1,26 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import mongoose from 'mongoose';
-import type { NextRequest } from 'next/server';
 
-export async function GET(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
+function extractJobId(req: NextRequest): string | null {
+  const pathname = new URL(req.url).pathname;
+  const match = pathname.match(/\/jobs\/([^/]+)(\/|$)/);
+  return match?.[1] || null;
+}
+
+export async function GET(req: NextRequest) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const id = extractJobId(req);
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
@@ -35,7 +37,7 @@ export async function GET(
 
     return NextResponse.json({ jobPost }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to fetch job post ${context.params.id}:`, error);
+    console.error(`Failed to fetch job post:`, error);
     return NextResponse.json(
       { message: 'Failed to fetch job post', error: error.message },
       { status: 500 }
@@ -43,25 +45,21 @@ export async function GET(
   }
 }
 
-export async function PUT(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function PUT(req: NextRequest) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const id = extractJobId(req);
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
     const jobPost = await JobPost.findById(id);
-
     if (!jobPost) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
@@ -112,7 +110,7 @@ export async function PUT(
 
     return NextResponse.json({ message: 'Job post updated successfully', jobPost }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to update job post ${context.params.id}:`, error);
+    console.error(`Failed to update job post:`, error);
     return NextResponse.json(
       { message: 'Failed to update job post', error: error.message },
       { status: 500 }
@@ -120,25 +118,21 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function DELETE(req: NextRequest) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
 
-    if (!session || !session.user || !session.user.id) {
+    if (!session?.user?.id) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = context.params;
+    const id = extractJobId(req);
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
     const jobPost = await JobPost.findById(id);
-
     if (!jobPost) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
@@ -157,7 +151,7 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Job post deleted successfully' }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to delete job post ${context.params.id}:`, error);
+    console.error(`Failed to delete job post:`, error);
     return NextResponse.json(
       { message: 'Failed to delete job post', error: error.message },
       { status: 500 }

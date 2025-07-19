@@ -19,20 +19,19 @@ interface PopulatedJobPostForApplicants extends Omit<IJobPost, 'applicants' | 'p
   company: mongoose.Types.ObjectId;
 }
 
-export async function GET(
-  req: NextRequest,
-  context: { params: { id: string } }
-) {
+export async function GET(req: NextRequest) {
   try {
     await dbConnect();
-
     const session = await getServerSession(authOptions);
 
     if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = context.params;
+    // Extract job ID from URL
+    const pathname = new URL(req.url).pathname;
+    const idMatch = pathname.match(/\/jobs\/([^/]+)\/applicants/);
+    const id = idMatch?.[1];
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
@@ -65,7 +64,7 @@ export async function GET(
 
     return NextResponse.json({ applicants: jobPost.applicants }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to fetch applicants:`, error);
+    console.error('Failed to fetch applicants:', error);
     return NextResponse.json(
       { message: 'Internal Server Error', error: error.message },
       { status: 500 }
