@@ -9,15 +9,10 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions'; // User's specified import path
 import mongoose from 'mongoose';
 
-// Define the expected type for the context object in dynamic routes
-interface RouteContext {
-  params: {
-    id: string;
-  };
-}
+// Removed the RouteContext interface as we are inlining the type
 
-export async function GET(request: NextRequest, context: RouteContext) {
-  const { id } = context.params;
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   await dbConnect();
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -34,8 +29,8 @@ export async function GET(request: NextRequest, context: RouteContext) {
   return NextResponse.json(job);
 }
 
-export async function PUT(request: NextRequest, context: RouteContext) {
-  const { id } = context.params;
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   await dbConnect();
 
   const session = await getServerSession(authOptions);
@@ -69,8 +64,8 @@ export async function PUT(request: NextRequest, context: RouteContext) {
   return NextResponse.json({ message: 'Job updated successfully' }, { status: 200 });
 }
 
-export async function DELETE(request: NextRequest, context: RouteContext) {
-  const { id } = context.params;
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const { id } = params;
   await dbConnect();
 
   const session = await getServerSession(authOptions);
