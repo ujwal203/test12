@@ -1,5 +1,5 @@
 // src/app/api/jobs/[id]/route.ts
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server'; // Keep NextRequest for now, but use Request in function signature
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import { getServerSession } from 'next-auth';
@@ -11,7 +11,7 @@ import mongoose from 'mongoose';
 
 // Removed the RouteContext interface as we are inlining the type
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
   const { id } = params;
   await dbConnect();
 
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json(job);
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
   const { id } = params;
   await dbConnect();
 
@@ -64,7 +64,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json({ message: 'Job updated successfully' }, { status: 200 });
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
   const { id } = params;
   await dbConnect();
 
