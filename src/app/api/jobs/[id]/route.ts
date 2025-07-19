@@ -1,17 +1,13 @@
 // src/app/api/jobs/[id]/route.ts
-import { NextResponse, NextRequest } from 'next/server';
+import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import mongoose from 'mongoose';
 
-interface Params {
-  id: string;
-}
-
 export async function GET(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -38,7 +34,7 @@ export async function GET(
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
@@ -84,7 +80,7 @@ export async function PUT(
 }
 
 export async function DELETE(
-  request: NextRequest,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
