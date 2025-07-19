@@ -56,7 +56,8 @@ declare module 'next-auth/adapters' {
   }
 }
 
-export const authOptions: AuthOptions = {
+// Removed 'export' from authOptions
+const authOptions: AuthOptions = {
   adapter: MongoDBAdapter(clientPromise, {
     databaseName: process.env.NODE_ENV === 'development' ? 'udyog-jagat-dev' : 'udyog-jagat',
   }) as Adapter,
@@ -65,7 +66,7 @@ export const authOptions: AuthOptions = {
       name: 'Credentials',
       credentials: {
         email: { label: 'Email', type: 'text' },
-        password: { label: 'Password', type: 'password', required: false }, // Password is now optional
+        password: { label: 'Password', type: 'password', required: false }, // Password is now optional for credentials
         referralCode: { label: 'Referral Code', type: 'text', required: false }, // Referral code is also optional
       },
       async authorize(credentials) {
@@ -95,8 +96,8 @@ export const authOptions: AuthOptions = {
               status: user.status,
               name: user.name,
               image: user.image,
-              referralCodeUsed: user.referralCodeUsed,
-              referralExpiresAt: user.referralExpiresAt,
+              referralCodeUsed: user.referralCodeUsed, // Will be undefined for admin unless set
+              referralExpiresAt: user.referralExpiresAt, // Will be undefined for admin unless set
             };
           } else {
             throw new Error('Invalid email or password.');
