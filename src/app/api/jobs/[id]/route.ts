@@ -2,129 +2,74 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
-import { authOptions } from '@/lib/authOptions';
 import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/authOptions';
+import mongoose from 'mongoose';
 
-export const dynamic = 'force-dynamic'; // Add this line for Vercel
-
-// GET Single Job
-export async function GET(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
-    const { id } = params;
-
-    // Basic validation
-    if (!id || id.length !== 24) {
-      return NextResponse.json(
-        { error: 'Invalid Job ID format' },
-        { status: 400 }
-      );
-    }
-
-    const job = await JobPost.findById(id)
-      .populate('postedBy', 'name email')
-      .lean();
-
-    if (!job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json(job);
-  } catch (error) {
-    console.error('GET Error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
-  }
+export function GET(request: Request, { params }: { params: { id: string } }) {
+  return handleRequest('GET', request, params);
 }
 
-// PUT Update Job
-export async function PUT(req: Request, { params }: { params: { id: string } }) {
+export function PUT(request: Request, { params }: { params: { id: string } }) {
+  return handleRequest('PUT', request, params);
+}
+
+export function DELETE(request: Request, { params }: { params: { id: string } }) {
+  return handleRequest('DELETE', request, params);
+}
+
+async function handleRequest(
+  method: 'GET' | 'PUT' | 'DELETE',
+  request: Request,
+  params: { id: string }
+) {
   try {
-    await dbConnect();
-    const session = await getServerSession(authOptions);
     const { id } = params;
+    await dbConnect();
 
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
-    const body = await req.json();
+    if (method === 'GET') {
+      const job = await JobPost.findById(id).populate('postedBy', 'name email');
+      if (!job) return NextResponse.json({ message: 'Job not found' }, { status: 404 });
+      return NextResponse.json(job);
+    }
+
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+
     const job = await JobPost.findById(id);
-
     if (!job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ message: 'Job not found' }, { status: 404 });
     }
 
-    // Authorization check
     if (session.user.role !== 'Administrator' && job.postedBy.toString() !== session.user.id) {
       return NextResponse.json(
-        { error: 'Forbidden' },
+        { message: 'Forbidden: You are not allowed to perform this action' },
         { status: 403 }
       );
     }
 
-    const updatedJob = await JobPost.findByIdAndUpdate(id, body, { new: true });
-    return NextResponse.json(updatedJob);
-  } catch (error) {
-    console.error('PUT Error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
-      { status: 500 }
-    );
-  }
-}
-
-// DELETE Job
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
-  try {
-    await dbConnect();
-    const session = await getServerSession(authOptions);
-    const { id } = params;
-
-    if (!session?.user) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 }
-      );
+    if (method === 'PUT') {
+      const body = await request.json();
+      Object.assign(job, body);
+      await job.save();
+      return NextResponse.json({ message: 'Job updated successfully' });
     }
 
-    const job = await JobPost.findById(id);
-
-    if (!job) {
-      return NextResponse.json(
-        { error: 'Job not found' },
-        { status: 404 }
-      );
+    if (method === 'DELETE') {
+      await JobPost.deleteOne({ _id: id });
+      return NextResponse.json({ message: 'Job deleted successfully' });
     }
 
-    // Authorization check
-    if (session.user.role !== 'Administrator' && job.postedBy.toString() !== session.user.id) {
-      return NextResponse.json(
-        { error: 'Forbidden' },
-        { status: 403 }
-      );
-    }
-
-    await JobPost.deleteOne({ _id: id });
+    return NextResponse.json({ message: 'Method not allowed' }, { status: 405 });
+  } catch (error: any) {
     return NextResponse.json(
-      { success: true },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error('DELETE Error:', error);
-    return NextResponse.json(
-      { error: 'Internal Server Error' },
+      { message: `Failed to ${method.toLowerCase()} job`, error: error.message },
       { status: 500 }
     );
   }
