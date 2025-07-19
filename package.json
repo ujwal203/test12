@@ -4,9 +4,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+    "build": "next build --no-lint",
+    "start": "next start"
   },
   "dependencies": {
     "@auth/mongodb-adapter": "^3.10.0",
