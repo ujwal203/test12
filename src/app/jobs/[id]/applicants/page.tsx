@@ -1,4 +1,4 @@
-// src/app/jobs/manage/[id]/applicants/page.tsx
+// src/app/jobs/[id]/applicants/page.tsx
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
@@ -7,15 +7,26 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiUsers, FiBriefcase, FiUser, FiMail, FiFileText, FiArrowLeft, FiXCircle } from 'react-icons/fi';
 
-interface Applicant {
+// Define proper types for your page
+type PageParams = {
+  id: string;
+};
+
+type PageProps = {
+  params: PageParams;
+  searchParams?: Record<string, string | string[] | undefined>;
+};
+
+// Define applicant type
+type Applicant = {
   _id: string;
   name?: string;
   email: string;
   role: string;
   resumeUrl?: string;
-}
+};
 
-export default function JobApplicantsPage({ params }: { params: { id: string } }) {
+export default function JobApplicantsPage({ params }: PageProps) {
   const { id: jobId } = params;
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -28,12 +39,12 @@ export default function JobApplicantsPage({ params }: { params: { id: string } }
   const fetchApplicants = useCallback(async () => {
     if (status === 'loading') return;
 
-    if (status === 'unauthenticated' || (session && session.user.status !== 'Approved')) {
+    if (status === 'unauthenticated' || (session?.user?.status !== 'Approved')) {
       router.push('/login?error=AccessDenied');
       return;
     }
 
-    if (session && !['Job Poster', 'Administrator'].includes(session.user.role)) {
+    if (session && !['Job Poster', 'Administrator'].includes(session.user?.role)) {
       setError('You do not have permission to view this page.');
       setLoading(false);
       return;
@@ -43,7 +54,7 @@ export default function JobApplicantsPage({ params }: { params: { id: string } }
     setError(null);
     try {
       const jobResponse = await fetch(`/api/jobs/${jobId}`);
-      if (!jobResponse.ok) throw new Error('Failed to fetch job details');
+      if (!jobResponse.ok) throw new Error('Failed to fetch job');
       const jobData = await jobResponse.json();
       setJobTitle(jobData.jobPost?.title || '');
 
@@ -51,18 +62,16 @@ export default function JobApplicantsPage({ params }: { params: { id: string } }
       if (!applicantsResponse.ok) throw new Error('Failed to fetch applicants');
       const applicantsData = await applicantsResponse.json();
       setApplicants(applicantsData.applicants || []);
-    } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred');
-      console.error('Error:', err);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error loading applicants');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   }, [session, status, router, jobId]);
 
   useEffect(() => {
-    if (jobId && status !== 'loading') {
-      fetchApplicants();
-    }
+    if (jobId && status !== 'loading') fetchApplicants();
   }, [jobId, status, fetchApplicants]);
 
   if (status === 'loading' || loading) {
@@ -76,7 +85,7 @@ export default function JobApplicantsPage({ params }: { params: { id: string } }
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 sm:p-6 lg:p-8 flex items-center justify-center">
-        <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-lg relative max-w-md w-full" role="alert">
+        <div className="bg-purple-50 border border-purple-200 text-purple-700 px-4 py-3 rounded-lg relative max-w-md w-full">
           <strong className="font-bold flex items-center"><FiXCircle className="mr-2" /> Error!</strong>
           <span className="block sm:inline"> {error}</span>
           <p className="text-sm mt-2">
