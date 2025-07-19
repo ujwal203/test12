@@ -5,7 +5,7 @@ import { MongoDBAdapter } from '@auth/mongodb-adapter';
 import clientPromise from '@/lib/mongodb';
 import dbConnect from '@/lib/dbConnect';
 import User, { IUser } from '@/models/User';
-import * as bcrypt from 'bcryptjs'; // Still needed for regular user password hashing
+import * as bcrypt from 'bcryptjs';
 import { Adapter } from 'next-auth/adapters';
 
 // Extend NextAuth types to include 'role' and 'status' in User and Session
@@ -56,8 +56,7 @@ declare module 'next-auth/adapters' {
   }
 }
 
-// Removed 'export' from authOptions
-const authOptions: AuthOptions = {
+export const authOptions: AuthOptions = {
   adapter: MongoDBAdapter(clientPromise, {
     databaseName: process.env.NODE_ENV === 'development' ? 'udyog-jagat-dev' : 'udyog-jagat',
   }) as Adapter,
@@ -76,19 +75,22 @@ const authOptions: AuthOptions = {
           throw new Error('Email is required.');
         }
 
-        // Fetch user, selecting password for admin check
         const user = await User.findOne({ email: credentials.email })
-          .select('+password referralCodeUsed status role name image referralExpiresAt')
+          .select('+password referralCodeUsed status role name image referralExpiresAt') // Select password for admin check
           .lean() as (IUser & { password?: string }) | null;
 
         if (!user) {
           throw new Error('Invalid email or credentials.');
         }
 
-        // --- Admin Login Logic (Email + Plaintext Password) ---
-        if (user.role === 'Administrator') {
-          // IMPORTANT: For testing ONLY. In production, passwords MUST be hashed.
-          if (credentials.password === user.password) { // Direct comparison for admin
+        // --- Admin Login Logic (Email + Password) ---
+        if (user.role === 'Administrator' && credentials.password) {
+          if (!user.password) {
+            throw new Error('Administrator account has no password set.');
+          }
+          const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
+          if (isPasswordValid) {
+            // Admin login successful
             return {
               id: (user._id as any).toString(),
               email: user.email,
@@ -112,6 +114,7 @@ const authOptions: AuthOptions = {
 
         // Check user status for regular users
         if (user.status === 'Pending') {
+          // FIX: Removed the extra 'new' keyword
           throw new Error('Account is pending approval. Please wait for an administrator to approve your request.');
         }
         if (user.status === 'Rejected') {
