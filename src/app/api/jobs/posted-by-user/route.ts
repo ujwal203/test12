@@ -1,7 +1,7 @@
 // src/app/api/jobs/posted-by-user/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route'; // Adjust path as needed
+import { authOptions } from '@/lib/authOptions';
 import JobPost from '@/models/JobPost'; // Ensure this path is correct
 import dbConnect from '@/lib/dbConnect'; // Ensure this path is correct (previously connectMongoDB)
 

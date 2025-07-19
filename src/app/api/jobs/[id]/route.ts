@@ -1,17 +1,14 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import mongoose from 'mongoose';
 
-function extractJobId(req: NextRequest): string | null {
-  const pathname = new URL(req.url).pathname;
-  const match = pathname.match(/\/jobs\/([^/]+)(\/|$)/);
-  return match?.[1] || null;
-}
-
-export async function GET(req: NextRequest) {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -20,12 +17,11 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = extractJobId(req);
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!params.id || !mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
-    const jobPost = await JobPost.findById(id)
+    const jobPost = await JobPost.findById(params.id)
       .populate('company')
       .populate('postedBy', 'name email')
       .populate('applicants', 'name email')
@@ -37,7 +33,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ jobPost }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to fetch job post:`, error);
+    console.error('Failed to fetch job post:', error);
     return NextResponse.json(
       { message: 'Failed to fetch job post', error: error.message },
       { status: 500 }
@@ -45,7 +41,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PUT(req: NextRequest) {
+export async function PUT(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -54,12 +53,11 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = extractJobId(req);
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!params.id || !mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
-    const jobPost = await JobPost.findById(id);
+    const jobPost = await JobPost.findById(params.id);
     if (!jobPost) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
@@ -74,43 +72,40 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    const body = await req.json();
-    const {
-      title,
-      description,
-      location,
-      jobType,
-      experienceLevel,
-      salaryRange,
-      skillsRequired,
-      applicationDeadline,
-      isActive,
-      companyName,
-    } = body;
+    const body = await request.json();
+    const updateData: Partial<typeof jobPost> = {};
 
-    if (title) jobPost.title = title;
-    if (description) jobPost.description = description;
-    if (location) jobPost.location = location;
-    if (jobType) jobPost.jobType = jobType;
-    if (experienceLevel) jobPost.experienceLevel = experienceLevel;
-    if (salaryRange) jobPost.salaryRange = salaryRange;
-    if (skillsRequired) jobPost.skillsRequired = skillsRequired;
-    if (applicationDeadline) jobPost.applicationDeadline = new Date(applicationDeadline);
-    if (typeof isActive === 'boolean') jobPost.isActive = isActive;
+    // Update fields
+    if (body.title) updateData.title = body.title;
+    if (body.description) updateData.description = body.description;
+    if (body.location) updateData.location = body.location;
+    if (body.jobType) updateData.jobType = body.jobType;
+    if (body.experienceLevel) updateData.experienceLevel = body.experienceLevel;
+    if (body.salaryRange) updateData.salaryRange = body.salaryRange;
+    if (body.skillsRequired) updateData.skillsRequired = body.skillsRequired;
+    if (body.applicationDeadline) {
+      updateData.applicationDeadline = new Date(body.applicationDeadline);
+    }
+    if (typeof body.isActive === 'boolean') updateData.isActive = body.isActive;
 
-    if (companyName) {
-      let company = await mongoose.models.Company.findOne({ name: companyName });
+    if (body.companyName) {
+      let company = await mongoose.models.Company.findOne({ name: body.companyName });
       if (!company) {
-        company = await mongoose.models.Company.create({ name: companyName });
+        company = await mongoose.models.Company.create({ name: body.companyName });
       }
-      jobPost.company = company._id;
+      updateData.company = company._id;
     }
 
-    await jobPost.save();
+    const updatedJob = await JobPost.findByIdAndUpdate(params.id, updateData, {
+      new: true,
+    });
 
-    return NextResponse.json({ message: 'Job post updated successfully', jobPost }, { status: 200 });
+    return NextResponse.json(
+      { message: 'Job post updated successfully', jobPost: updatedJob },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error(`Failed to update job post:`, error);
+    console.error('Failed to update job post:', error);
     return NextResponse.json(
       { message: 'Failed to update job post', error: error.message },
       { status: 500 }
@@ -118,7 +113,10 @@ export async function PUT(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -127,12 +125,11 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const id = extractJobId(req);
-    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+    if (!params.id || !mongoose.Types.ObjectId.isValid(params.id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
-    const jobPost = await JobPost.findById(id);
+    const jobPost = await JobPost.findById(params.id);
     if (!jobPost) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
@@ -149,9 +146,12 @@ export async function DELETE(req: NextRequest) {
 
     await jobPost.deleteOne();
 
-    return NextResponse.json({ message: 'Job post deleted successfully' }, { status: 200 });
+    return NextResponse.json(
+      { message: 'Job post deleted successfully' },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error(`Failed to delete job post:`, error);
+    console.error('Failed to delete job post:', error);
     return NextResponse.json(
       { message: 'Failed to delete job post', error: error.message },
       { status: 500 }
