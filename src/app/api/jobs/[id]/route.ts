@@ -6,13 +6,17 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import mongoose from 'mongoose';
 
+interface Params {
+  id: string;
+}
+
 export async function GET(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Params }
 ) {
   try {
     await dbConnect();
-    const { id } = context.params;
+    const { id } = params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
@@ -35,11 +39,11 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Params }
 ) {
   try {
     await dbConnect();
-    const { id } = context.params;
+    const { id } = params;
 
     const session = await getServerSession(authOptions);
     if (!session || !session.user || !session.user.id) {
@@ -81,11 +85,11 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  context: { params: { id: string } }
+  { params }: { params: Params }
 ) {
   try {
     await dbConnect();
-    const { id } = context.params;
+    const { id } = params;
 
     const session = await getServerSession(authOptions);
     if (!session || !session.user || !session.user.id) {
