@@ -1,7 +1,7 @@
 // src/app/api/jobs/[id]/applicants/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
 import JobPost, { IJobPost } from '@/models/JobPost'; // Import IJobPost for base type
 import User, { IUser } from '@/models/User'; // Import IUser for applicant typing
