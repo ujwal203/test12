@@ -7,9 +7,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { FiUsers, FiBriefcase, FiUser, FiMail, FiFileText, FiArrowLeft, FiXCircle } from 'react-icons/fi';
 
-// This is the critical fix - using Next.js's built-in types
-import type { Metadata } from 'next';
-
 export default function JobApplicantsPage({ params }: { params: { id: string } }) {
   const { id: jobId } = params;
   const { data: session, status } = useSession();
@@ -118,9 +115,3 @@ export default function JobApplicantsPage({ params }: { params: { id: string } }
     </div>
   );
 }
-
-// This is required for Next.js 15.4.2 page components
-export const metadata: Metadata = {
-  title: 'Job Applicants',
-  description: 'View applicants for this job posting',
-};
