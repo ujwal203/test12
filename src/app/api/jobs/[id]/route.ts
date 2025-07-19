@@ -1,5 +1,5 @@
 // src/app/api/jobs/[id]/route.ts
-import { NextResponse, NextRequest } from 'next/server'; // Keep NextRequest for now, but use Request in function signature
+import { NextResponse, NextRequest } from 'next/server'; // Keep NextRequest for consistency
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import { getServerSession } from 'next-auth';
@@ -11,8 +11,8 @@ import mongoose from 'mongoose';
 
 // Removed the RouteContext interface as we are inlining the type
 
-export async function GET(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
-  const { id } = params;
+export async function GET(request: NextRequest, context: { params: { id: string } }) { // Changed to NextRequest and context variable
+  const { id } = context.params; // Destructure params inside
   await dbConnect();
 
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -29,8 +29,8 @@ export async function GET(request: Request, { params }: { params: { id: string }
   return NextResponse.json(job);
 }
 
-export async function PUT(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
-  const { id } = params;
+export async function PUT(request: NextRequest, context: { params: { id: string } }) { // Changed to NextRequest and context variable
+  const { id } = context.params; // Destructure params inside
   await dbConnect();
 
   const session = await getServerSession(authOptions);
@@ -64,8 +64,8 @@ export async function PUT(request: Request, { params }: { params: { id: string }
   return NextResponse.json({ message: 'Job updated successfully' }, { status: 200 });
 }
 
-export async function DELETE(request: Request, { params }: { params: { id: string } }) { // Changed NextRequest to Request
-  const { id } = params;
+export async function DELETE(request: NextRequest, context: { params: { id: string } }) { // Changed to NextRequest and context variable
+  const { id } = context.params; // Destructure params inside
   await dbConnect();
 
   const session = await getServerSession(authOptions);
