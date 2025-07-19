@@ -1,17 +1,15 @@
-// src/app/api/jobs/[id]/route.ts
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import mongoose from 'mongoose';
+import type { NextRequest } from 'next/server';
 
-interface Params {
-  id: string; // The job post ID from the URL
-}
-
-// Existing GET function (if any) should remain here
-export async function GET(req: Request, { params }: { params: Params }) {
+export async function GET(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -20,15 +18,15 @@ export async function GET(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = context.params;
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
 
     const jobPost = await JobPost.findById(id)
       .populate('company')
-      .populate('postedBy', 'name email') // Populate postedBy to check ownership
-      .populate('applicants', 'name email') // Populate applicants for job details page
+      .populate('postedBy', 'name email')
+      .populate('applicants', 'name email')
       .lean();
 
     if (!jobPost) {
@@ -37,7 +35,7 @@ export async function GET(req: Request, { params }: { params: Params }) {
 
     return NextResponse.json({ jobPost }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to fetch job post ${params.id}:`, error);
+    console.error(`Failed to fetch job post ${context.params.id}:`, error);
     return NextResponse.json(
       { message: 'Failed to fetch job post', error: error.message },
       { status: 500 }
@@ -45,8 +43,10 @@ export async function GET(req: Request, { params }: { params: Params }) {
   }
 }
 
-// Existing PUT function (if any) should remain here
-export async function PUT(req: Request, { params }: { params: Params }) {
+export async function PUT(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -55,7 +55,7 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = context.params;
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
@@ -66,15 +66,30 @@ export async function PUT(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
 
-    // Authorization check: Only the job poster or an administrator can update
-    if (jobPost.postedBy.toString() !== session.user.id && session.user.role !== 'Administrator') {
-      return NextResponse.json({ message: 'Forbidden: You can only update your own job posts' }, { status: 403 });
+    if (
+      jobPost.postedBy.toString() !== session.user.id &&
+      session.user.role !== 'Administrator'
+    ) {
+      return NextResponse.json(
+        { message: 'Forbidden: You can only update your own job posts' },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();
-    const { title, description, location, jobType, experienceLevel, salaryRange, skillsRequired, applicationDeadline, isActive, companyName } = body;
+    const {
+      title,
+      description,
+      location,
+      jobType,
+      experienceLevel,
+      salaryRange,
+      skillsRequired,
+      applicationDeadline,
+      isActive,
+      companyName,
+    } = body;
 
-    // Update fields based on provided body
     if (title) jobPost.title = title;
     if (description) jobPost.description = description;
     if (location) jobPost.location = location;
@@ -85,7 +100,6 @@ export async function PUT(req: Request, { params }: { params: Params }) {
     if (applicationDeadline) jobPost.applicationDeadline = new Date(applicationDeadline);
     if (typeof isActive === 'boolean') jobPost.isActive = isActive;
 
-    // Handle companyName update: find or create company
     if (companyName) {
       let company = await mongoose.models.Company.findOne({ name: companyName });
       if (!company) {
@@ -98,7 +112,7 @@ export async function PUT(req: Request, { params }: { params: Params }) {
 
     return NextResponse.json({ message: 'Job post updated successfully', jobPost }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to update job post ${params.id}:`, error);
+    console.error(`Failed to update job post ${context.params.id}:`, error);
     return NextResponse.json(
       { message: 'Failed to update job post', error: error.message },
       { status: 500 }
@@ -106,9 +120,10 @@ export async function PUT(req: Request, { params }: { params: Params }) {
   }
 }
 
-
-// NEW: DELETE function
-export async function DELETE(req: Request, { params }: { params: Params }) {
+export async function DELETE(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
@@ -117,7 +132,7 @@ export async function DELETE(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const { id } = params;
+    const { id } = context.params;
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
     }
@@ -128,16 +143,21 @@ export async function DELETE(req: Request, { params }: { params: Params }) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
     }
 
-    // Authorization check: Only the job poster or an administrator can delete
-    if (jobPost.postedBy.toString() !== session.user.id && session.user.role !== 'Administrator') {
-      return NextResponse.json({ message: 'Forbidden: You can only delete your own job posts' }, { status: 403 });
+    if (
+      jobPost.postedBy.toString() !== session.user.id &&
+      session.user.role !== 'Administrator'
+    ) {
+      return NextResponse.json(
+        { message: 'Forbidden: You can only delete your own job posts' },
+        { status: 403 }
+      );
     }
 
-    await jobPost.deleteOne(); // Use deleteOne() for Mongoose 6+
+    await jobPost.deleteOne();
 
     return NextResponse.json({ message: 'Job post deleted successfully' }, { status: 200 });
   } catch (error: any) {
-    console.error(`Failed to delete job post ${params.id}:`, error);
+    console.error(`Failed to delete job post ${context.params.id}:`, error);
     return NextResponse.json(
       { message: 'Failed to delete job post', error: error.message },
       { status: 500 }

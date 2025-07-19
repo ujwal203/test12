@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
@@ -19,7 +19,10 @@ interface PopulatedJobPostForApplicants extends Omit<IJobPost, 'applicants' | 'p
   company: mongoose.Types.ObjectId;
 }
 
-export async function GET(req: Request) {
+export async function GET(
+  req: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
     await dbConnect();
 
@@ -29,15 +32,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
-    const allowedRoles = ['Job Poster', 'Administrator'];
-    if (!allowedRoles.includes(session.user.role)) {
-      return NextResponse.json({ message: 'Forbidden: Insufficient role' }, { status: 403 });
-    }
-
-    // Extract `id` param from URL path:
-    const url = new URL(req.url);
-    const segments = url.pathname.split('/').filter(Boolean); // e.g. ['api', 'jobs', '[id]', 'applicants']
-    const id = segments[segments.length - 2]; // The segment before 'applicants'
+    const { id } = context.params;
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
