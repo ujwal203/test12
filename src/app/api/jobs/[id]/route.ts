@@ -3,120 +3,99 @@ import { NextResponse, NextRequest } from 'next/server';
 import dbConnect from '@/lib/dbConnect';
 import JobPost from '@/models/JobPost';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/authOptions';
+// Assuming authOptions is now correctly exported from '@/lib/authOptions'
+// If you moved authOptions, ensure it's exported from that new location.
+// If not, it should be: import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { authOptions } from '@/lib/authOptions'; // User's specified import path
 import mongoose from 'mongoose';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await dbConnect();
-    const { id } = params;
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
-    }
-
-    const job = await JobPost.findById(id).populate('postedBy', 'name email');
-
-    if (!job) {
-      return NextResponse.json({ message: 'Job not found' }, { status: 404 });
-    }
-
-    return NextResponse.json(job, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json(
-      { message: 'Failed to fetch job', error: error.message },
-      { status: 500 }
-    );
-  }
+// Define the expected type for the context object in dynamic routes
+interface RouteContext {
+  params: {
+    id: string;
+  };
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await dbConnect();
-    const { id } = params;
+export async function GET(request: NextRequest, context: RouteContext) {
+  const { id } = context.params;
+  await dbConnect();
 
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
-
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
-    }
-
-    const body = await request.json();
-    const job = await JobPost.findById(id);
-
-    if (!job) {
-      return NextResponse.json({ message: 'Job not found' }, { status: 404 });
-    }
-
-    if (
-      session.user.role !== 'Administrator' &&
-      job.postedBy.toString() !== session.user.id
-    ) {
-      return NextResponse.json(
-        { message: 'Forbidden: You are not allowed to update this job' },
-        { status: 403 }
-      );
-    }
-
-    Object.assign(job, body);
-    await job.save();
-
-    return NextResponse.json({ message: 'Job updated successfully' }, { status: 200 });
-  } catch (error: any) {
-    return NextResponse.json(
-      { message: 'Failed to update job', error: error.message },
-      { status: 500 }
-    );
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
   }
+
+  // Populate 'postedBy' to get name and email, and convert to lean object for easier typing
+  const job = await JobPost.findById(id).populate('postedBy', 'name email').lean();
+
+  if (!job) {
+    return NextResponse.json({ message: 'Job not found' }, { status: 404 });
+  }
+
+  return NextResponse.json(job);
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    await dbConnect();
-    const { id } = params;
+export async function PUT(request: NextRequest, context: RouteContext) {
+  const { id } = context.params;
+  await dbConnect();
 
-    const session = await getServerSession(authOptions);
-    if (!session || !session.user || !session.user.id) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
-    }
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
-    }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
+  }
 
-    const job = await JobPost.findById(id);
-    if (!job) {
-      return NextResponse.json({ message: 'Job not found' }, { status: 404 });
-    }
+  const body = await request.json();
+  const job = await JobPost.findById(id); // Fetch as Mongoose document to use .save()
 
-    if (
-      session.user.role !== 'Administrator' &&
-      job.postedBy.toString() !== session.user.id
-    ) {
-      return NextResponse.json(
-        { message: 'Forbidden: You are not allowed to delete this job' },
-        { status: 403 }
-      );
-    }
+  if (!job) {
+    return NextResponse.json({ message: 'Job not found' }, { status: 404 });
+  }
 
-    await JobPost.findByIdAndDelete(id);
-    return NextResponse.json({ message: 'Job deleted successfully' }, { status: 200 });
-  } catch (error: any) {
+  // Ensure only the job poster or an administrator can update
+  if (session.user.role !== 'Administrator' && job.postedBy.toString() !== session.user.id) {
     return NextResponse.json(
-      { message: 'Failed to delete job', error: error.message },
-      { status: 500 }
+      { message: 'Forbidden: You are not allowed to update this job' },
+      { status: 403 }
     );
   }
+
+  // Update fields from the request body
+  Object.assign(job, body);
+  await job.save(); // Save the updated Mongoose document
+
+  return NextResponse.json({ message: 'Job updated successfully' }, { status: 200 });
+}
+
+export async function DELETE(request: NextRequest, context: RouteContext) {
+  const { id } = context.params;
+  await dbConnect();
+
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+  }
+
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
+  }
+
+  const job = await JobPost.findById(id); // Fetch to check ownership
+
+  if (!job) {
+    return NextResponse.json({ message: 'Job not found' }, { status: 404 });
+  }
+
+  // Ensure only the job poster or an administrator can delete
+  if (session.user.role !== 'Administrator' && job.postedBy.toString() !== session.user.id) {
+    return NextResponse.json(
+      { message: 'Forbidden: You are not allowed to delete this job' },
+      { status: 403 }
+    );
+  }
+
+  await JobPost.deleteOne({ _id: id });
+  return NextResponse.json({ message: 'Job deleted successfully' }, { status: 200 });
 }
