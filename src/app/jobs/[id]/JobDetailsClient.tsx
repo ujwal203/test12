@@ -15,15 +15,12 @@ interface PopulatedJobPost extends Omit<IJobPost, 'company' | 'postedBy' | 'appl
   applicants: { _id: string; name: string; email: string }[];
 }
 
-// CORRECTED: The component now accepts a simple `id` string prop
+// The component now accepts a simple `id` string prop
 interface JobDetailsClientProps {
   id: string;
 }
 
 export default function JobDetailsClient({ id }: JobDetailsClientProps) {
-  // REMOVED: The line 'const { id } = params;' is no longer needed.
-  // The 'id' prop is used directly.
-
   const { data: session, status } = useSession();
   const router = useRouter();
 
@@ -47,22 +44,26 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
         const response = await fetch(`/api/jobs/${id}`);
         if (!response.ok) {
           const errorText = await response.text();
+          console.error('API Error Response Text:', errorText);
           throw new Error(`Failed to fetch job details: ${response.status} ${response.statusText}.`);
         }
         const data = await response.json();
         const fetchedJob: PopulatedJobPost = data.jobPost;
         setJobPost(fetchedJob);
+
         if (session?.user?.id && Array.isArray(fetchedJob.applicants) && fetchedJob.applicants.some(applicant => applicant._id === session.user.id)) {
           setHasApplied(true);
         } else {
           setHasApplied(false);
         }
       } catch (err: any) {
-        setError(err.message || 'An unexpected error occurred.');
+        setError(err.message || 'An unexpected error occurred while fetching job details.');
+        console.error('Fetch Job Details Error:', err);
       } finally {
         setLoading(false);
       }
     };
+
     if (id && status !== 'loading') {
       fetchJobDetails();
     }
@@ -70,35 +71,40 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
 
   const handleApply = async () => {
     if (!session || session.user.role !== 'Job Seeker') {
-      setError('Only Job Seekers can apply.');
+      setError('Only Job Seekers can apply for jobs.');
       return;
     }
     if (hasApplied) {
-      setError('You have already applied.');
+      setError('You have already applied for this job.');
       return;
     }
+
     setApplying(true);
     setError(null);
     setApplySuccess(null);
+
     try {
       const response = await fetch(`/api/jobs/${id}/apply`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
+
       if (!response.ok) {
         const errorText = await response.text();
-        throw new Error(`Failed to apply: ${response.status} ${response.statusText}.`);
+        console.error('Apply API Error Response Text:', errorText);
+        throw new Error(`Failed to submit application: ${response.status} ${response.statusText}.`);
       }
+
       setApplySuccess('Application submitted successfully!');
       setHasApplied(true);
     } catch (err: any) {
-      setError(err.message || 'An unexpected error occurred.');
+      setError(err.message || 'An unexpected error occurred while submitting application.');
+      console.error('Apply Error:', err);
     } finally {
       setApplying(false);
     }
   };
 
-  // --- All JSX Rendering Logic Below is Unchanged ---
   if (status === 'loading' || loading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -117,6 +123,7 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative max-w-md w-full" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
+          <p className="text-sm mt-2">Please try navigating back or refreshing the page. If you are a pending user, please wait for admin approval.</p>
         </div>
       </div>
     );
@@ -128,6 +135,11 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
         <div className="bg-yellow-100 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative max-w-md w-full" role="alert">
           <strong className="font-bold">Not Found!</strong>
           <span className="block sm:inline"> The job post you are looking for does not exist.</span>
+          <p className="text-sm mt-2">
+            <Link href="/jobs/find" className="text-yellow-800 hover:underline">
+              Go back to Job Search
+            </Link>
+          </p>
         </div>
       </div>
     );
@@ -156,7 +168,9 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
             </div>
           </div>
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm sm:text-base opacity-90">
-            <div className="flex items-center"><FiMapPin className="mr-2 h-4 w-4" /> {jobPost.location}</div>
+            <div className="flex items-center">
+              <FiMapPin className="mr-2 h-4 w-4" /> {jobPost.location}
+            </div>
             {jobPost.company?.website && (
               <a href={jobPost.company.website} target="_blank" rel="noopener noreferrer" className="flex items-center hover:underline">
                 <FiGlobe className="mr-2 h-4 w-4" /> Visit Company
@@ -167,14 +181,35 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
         <div className="p-6 sm:p-8">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-gray-700 mb-8">
             <div className="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm">
-              <FiBriefcase className="mr-3 h-5 w-5 text-[#741ee3]" /><p><strong>Type:</strong> {jobPost.jobType}</p>
+              <FiBriefcase className="mr-3 h-5 w-5 text-[#741ee3]" />
+              <div>
+                <p className="text-xs font-semibold text-gray-500">Job Type</p>
+                <p className="font-medium">{jobPost.jobType}</p>
+              </div>
             </div>
             <div className="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm">
-              <FiAward className="mr-3 h-5 w-5 text-[#741ee3]" /><p><strong>Experience:</strong> {jobPost.experienceLevel}</p>
+              <FiAward className="mr-3 h-5 w-5 text-[#741ee3]" />
+              <div>
+                <p className="text-xs font-semibold text-gray-500">Experience Level</p>
+                <p className="font-medium">{jobPost.experienceLevel}</p>
+              </div>
             </div>
             {jobPost.salaryRange && (
               <div className="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm">
-                <FiDollarSign className="mr-3 h-5 w-5 text-[#741ee3]" /><p><strong>Salary:</strong> {jobPost.salaryRange}</p>
+                <FiDollarSign className="mr-3 h-5 w-5 text-[#741ee3]" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-500">Salary</p>
+                  <p className="font-medium">{jobPost.salaryRange}</p>
+                </div>
+              </div>
+            )}
+            {jobPost.applicationDeadline && (
+              <div className="flex items-center bg-gray-50 p-3 rounded-lg shadow-sm">
+                <FiClock className="mr-3 h-5 w-5 text-[#741ee3]" />
+                <div>
+                  <p className="text-xs font-semibold text-gray-500">Deadline</p>
+                  <p className="font-medium">{new Date(jobPost.applicationDeadline).toLocaleDateString()}</p>
+                </div>
               </div>
             )}
           </div>
@@ -191,15 +226,41 @@ export default function JobDetailsClient({ id }: JobDetailsClientProps) {
             </div>
           )}
           <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-            {applySuccess && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg w-full text-center">{applySuccess}</div>}
+            {applySuccess && (
+              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-lg relative w-full sm:w-auto text-center" role="alert">
+                <span className="block">{applySuccess}</span>
+              </div>
+            )}
+            {error && !applySuccess && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative w-full sm:w-auto text-center" role="alert">
+                <span className="block">{error}</span>
+              </div>
+            )}
             {showApplyButton && (
-              <button onClick={handleApply} className="w-full sm:w-auto flex items-center justify-center bg-gradient-to-r from-[#741ee3] to-[#9a4dff] text-white font-bold py-3 px-8 rounded-lg" disabled={applying}>
+              <button onClick={handleApply} className="w-full sm:w-auto flex items-center justify-center bg-gradient-to-r from-[#741ee3] to-[#9a4dff] hover:from-[#5a16b5] hover:to-[#741ee3] text-white font-bold py-3 px-8 rounded-lg shadow-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-[#741ee3] focus:ring-offset-2 transform hover:scale-105" disabled={applying}>
                 {applying ? 'Applying...' : <><FiCheckCircle className="mr-2" /> Apply Now</>}
               </button>
             )}
-            {showAppliedMessage && <span className="bg-blue-100 text-blue-800 text-base font-semibold px-5 py-3 rounded-lg w-full text-center">Applied</span>}
-            {showJobPosterMessage && <span className="bg-gray-100 text-gray-700 text-base font-semibold px-5 py-3 rounded-lg w-full text-center">(Your Job Post)</span>}
-            {showAdminOrOtherJobPosterMessage && <span className="bg-gray-100 text-gray-700 text-base font-semibold px-5 py-3 rounded-lg w-full text-center">(Admin/Poster View)</span>}
+            {showAppliedMessage && (
+              <span className="bg-blue-100 text-blue-800 text-base font-semibold px-5 py-3 rounded-lg shadow-md w-full sm:w-auto text-center">
+                You have already applied for this job.
+              </span>
+            )}
+            {showJobPosterMessage && (
+              <span className="bg-gray-100 text-gray-700 text-base font-semibold px-5 py-3 rounded-lg shadow-md w-full sm:w-auto text-center">
+                (Your Job Post)
+              </span>
+            )}
+            {showAdminOrOtherJobPosterMessage && (
+              <span className="bg-gray-100 text-gray-700 text-base font-semibold px-5 py-3 rounded-lg shadow-md w-full sm:w-auto text-center">
+                (Admin/Job Poster View)
+              </span>
+            )}
+          </div>
+          <div className="mt-8 text-center">
+            <Link href="/jobs/find" className="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
+              <FiArrowLeft className="mr-2 h-4 w-4" /> Back to Job Search
+            </Link>
           </div>
         </div>
       </div>
