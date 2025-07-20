@@ -8,35 +8,18 @@ import Link from 'next/link';
 import { IUser } from '@/models/User'; // Import IUser for applicant typing
 import { FiUsers, FiUser, FiMail, FiBriefcase, FiFileText, FiXCircle, FiArrowLeft } from 'react-icons/fi'; // Import necessary icons
 
-// Define the PageProps type as Next.js seems to be expecting it, including the Promise for params
-// This is a workaround for the specific error message encountered.
-interface NextJsPageProps {
-  params: Promise<{ id: string }> | { id: string }; // Allow both promise and resolved object
+// FIX: Simplified the PageProps type. For client components, params is typically a plain object.
+// Making 'params' optional and then safely accessing 'params.id' is a robust pattern.
+interface ApplicantsPageProps {
+  params?: { // Make params optional to satisfy PageProps constraint
+    id: string; // Job ID from the URL
+  };
   searchParams?: { [key: string]: string | string[] | undefined };
 }
 
-export default function JobApplicantsPage({ params }: NextJsPageProps) {
-  // FIX: Safely resolve params, assuming it might be a promise or already resolved.
-  // This directly addresses the "missing properties from type 'Promise<any>'" error by handling the promise.
-  const [jobId, setJobId] = useState<string | null>(null);
-
-  useEffect(() => {
-    const resolveParams = async () => {
-      // Check if params is a Promise (has a .then method)
-      if (params && typeof (params as Promise<any>).then === 'function') {
-        const resolvedParams = await (params as Promise<{ id: string }>);
-        setJobId(resolvedParams.id);
-      } else if (params && (params as { id: string }).id) {
-        // If params is already a resolved object
-        setJobId((params as { id: string }).id);
-      } else {
-        // Handle cases where params might be undefined or malformed
-        console.error("Invalid params received:", params);
-        // Optionally, redirect or show an error to the user
-      }
-    };
-    resolveParams();
-  }, [params]); // Re-run if params object itself changes
+export default function JobApplicantsPage({ params }: ApplicantsPageProps) {
+  // FIX: Safely access jobId from params. It will be null if params is undefined.
+  const jobId = params?.id || null;
 
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -48,7 +31,7 @@ export default function JobApplicantsPage({ params }: NextJsPageProps) {
 
   const fetchApplicants = useCallback(async () => {
     // Only proceed if session status is not loading and jobId has been resolved
-    if (status === 'loading' || !jobId) return;
+    if (status === 'loading' || jobId === null) return; // Check for null jobId
 
     // Redirect if unauthenticated OR if authenticated but user status is not 'Approved'
     if (status === 'unauthenticated' || (session && session.user.status !== 'Approved')) {
