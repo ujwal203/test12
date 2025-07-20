@@ -1,22 +1,37 @@
-import { NextResponse } from 'next/server';
+import { NextResponse, NextRequest } from 'next/server';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/authOptions';
 import dbConnect from '@/lib/dbConnect';
-import JobPost from '@/models/JobPost';
+import JobPost, { IJobPost } from '@/models/JobPost';
 import mongoose from 'mongoose';
 
-export async function GET(request: Request) {
+interface PopulatedJobPostForApplicants extends Omit<IJobPost, 'applicants' | 'postedBy' | 'company'> {
+  applicants: Array<{
+    _id: string;
+    name?: string;
+    email: string;
+    role: 'Guest' | 'Job Seeker' | 'Job Poster' | 'Referrer' | 'Administrator';
+    resumeUrl?: string;
+  }>;
+  postedBy: {
+    _id: string;
+  };
+  company: mongoose.Types.ObjectId;
+}
+
+export async function GET(req: NextRequest) {
   try {
     await dbConnect();
     const session = await getServerSession(authOptions);
 
-    if (!session?.user) {
+    if (!session || !session.user) {
       return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
     }
 
     // Extract job ID from URL
-    const url = new URL(request.url);
-    const id = url.pathname.split('/')[3]; // Gets the ID from /api/jobs/[id]/applicants
+    const pathname = new URL(req.url).pathname;
+    const idMatch = pathname.match(/\/jobs\/([^/]+)\/applicants/);
+    const id = idMatch?.[1];
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ message: 'Invalid Job ID' }, { status: 400 });
@@ -30,7 +45,8 @@ export async function GET(request: Request) {
       .populate({
         path: 'postedBy',
         select: '_id',
-      });
+      })
+      .lean() as PopulatedJobPostForApplicants | null;
 
     if (!jobPost) {
       return NextResponse.json({ message: 'Job post not found' }, { status: 404 });
@@ -47,11 +63,10 @@ export async function GET(request: Request) {
     }
 
     return NextResponse.json({ applicants: jobPost.applicants }, { status: 200 });
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error('Failed to fetch applicants:', error);
-    const message = error instanceof Error ? error.message : 'Unknown error occurred';
     return NextResponse.json(
-      { message: 'Internal Server Error', error: message },
+      { message: 'Internal Server Error', error: error.message },
       { status: 500 }
     );
   }
